@@ -1,12 +1,13 @@
 # CNN-based coastline detection pipeline
-CNN-based coastline detection pipeline
+This is a pipeline of training and validating a CNN-based image segmentation which is based on image-segmentation-keras package (https://github.com/divamgupta/image-segmentation-keras).
 
-# Image segmentation algorithm ROS implementation
-This is a ROS package utilizing a trained CNN for coastline detection through a ZED stereo camera inside the UAV simulator synthetic environment presented in https://github.com/sotomotocross/UAV_simulator_ArduCopter.git
+The extra repositories that you will be needed to utilize during the pipeline execution are (will explain later):
+1) https://github.com/divamgupta/image-segmentation-keras
+2) https://github.com/wkentaro/labelme
+3) https://github.com/aleju/imgaug
 
-
-## The ROS workspace setup
-You have to create a separate catkin_ws to run the present package with the trained CNN. This ROS worskpace needs to be build and run using Python3. For this reason the user has to setup a python3 virtual environment and installing a set of dependencies inside. Also if you are an NVIDIA user then you have to check the CUDA versions, and cuDNN. Else you will be running the NN prediction on your CPU (either way the payload to the computer is heavy but GPU acceleration helps a lot).
+## The SW/HW setup
+This pipeline runs on Python3. For this reason the user has to setup a python3 virtual environment and installing a set of dependencies inside. Also if you are an NVIDIA user then you have to check the CUDA versions, and cuDNN. Else you will be running the NN prediction on your CPU (either way the payload to the computer is heavy but GPU acceleration helps a lot).
 The basic dependencies for the python3 are installed using the bellow commands:
 ```
 $ cd ~
@@ -57,98 +58,46 @@ $ >>> import keras_segmentation
 $ >>>
 ```
 If everything succesful you can check your python 3 virtual environment running the image-segmentation-keras tutorial (https://github.com/divamgupta/image-segmentation-keras) with the dataset given from the framework. It takes about 4-6 hours (depending on the PC's we have tested till this day) so you can leave at night. If all the predictions are ok then your python 3 virtual environment is ready for use.
+The commands and choice of packages depends on the HW you utilize. We implemented everything on Ubuntu 18.04 with Python 3.6 and a GPU GTX 1070.
 
-The setup of the ROS workspace will be given below.
+## Frames collection and pre-processing
+Usually the acquired will come on a video format. You have to split the video in frames and start labeling.
+A popular tool for this procedure is the labelme package https://github.com/wkentaro/labelme.
+After you complete the coping procedure of by hand labeling which depends on the image segmentation you want to implement (i.e. specific target detection) you should have a folder with the original frames and a folder with the labels on a .json format.
+Once you go through with this procedure you are able to execute the whole pipeline.
+
+## Pipeline execution
+At first you should create some folders:
 ```
-$ mkdir -p ~/image_seg_catkin_ws/src
-$ cd ~/image_seg_catkin_ws
-$ pip3 install numpy
-$ pip3 install scipy matplotlib pillow
-$ pip3 install imutils h5py==2.10.0 requests progressbar2
-$ pip3 install cython
-$ pip3 install scikit-learn scikit-build scikit-image
-$ pip3 install opencv-contrib-python==4.4.0.46
-$ pip3 install opencv-python==4.4.0.42
-$ pip3 install rospkg empy
-$ cd src
-$ git clone https://github.com/OTL/cv_camera.git
-$ git clone -b melodic-devel https://github.com/ros/geometry2.git
-$ git clone https://github.com/ros-perception/image_common.git
-$ git clone https://github.com/amc-nu/RosImageFolderPublisher.git
-$ git clone -b melodic https://github.com/ros-perception/vision_opencv.git
-$ rosdep install --from-paths src --ignore-src -r -y
-$ catkin_make -DPYTHON_EXECUTABLE=/usr/bin/python3 -DPYTHON_INCLUDE_DIR=/usr/include/python3.6 -DPYTHON_LIBRARY=/usr/lib/x86_64-linux-gnu/libpython3.6m.so
+$ mkdir Masks ResizedFr ResizedMasks AugFr AugMasks DisplayFrMasks_before_classification CMasks TestFr TestMasks Test_output DisplayFrMasks_after_training
 ```
-Now you can move all the ecatkin_ws content from the repo to the src directory of the ecatkin_ws you just created and build.
-Then you execute the commands below:
+Then you can begin executing the following commands:
 ```
-$ cd ~/image_seg_catkin_ws
-$ rosdep install --from-paths src --ignore-src -r -y
-$ catkin_make -DPYTHON_EXECUTABLE=/usr/bin/python3 -DPYTHON_INCLUDE_DIR=/usr/include/python3.6 -DPYTHON_LIBRARY=/usr/lib/x86_64-linux-gnu/libpython3.6m.so
-$ source devel/setup.bash
+$ ipython TakeMasks.ipynb
+$ ipython Resize.ipynb
 ```
-
-While the simulator is running you open a terminal and run the commands below that can start the trained NN for coastline detection running:
+After this part you can implement Augmentation tools that are utilized in the Augment.ipynb file according to what you wish about your application and the versatility you wish. This can be a trial and error procedure which tou can test only after training. So you choose the least ones for beginning and then enrich the augmentation tools accordnig to your results:
 ```
-$ cd ~/image_seg_catkin_ws
-$  source devel/setup.bash
-$ source ~/anaconda3/etc/profile.d/conda.shconda activate tf-gpu-cuda10
-$ rosrun img_seg_cnn vgg_unet_predict.py
+$ ipython Augment.ipynb
 ```
+After this part you can test if something has gone wrong with all the previous steps by running the combined display between you frames and masks:
 
-
-Preperations in Windows and Jupyter notebook:
-	0. Split your videos in frames (frames must be .png files) 
-	https://theailearner.com/2018/10/15/extracting-and-saving-video-frames-using-opencv-python/
-
-	1. Put your chosen frames in a folder FrPNG 
-   	Create empty folders: AugFr, AugMasks, Labels, Masks, ResizedFr, ResizedMasks, TestFr, TestM, CMasks, output
-
-	2. Run Rename:
-		Renames frames in folder FrPNG
-
-	3. Label frames in FrPNG using https://github.com/wkentaro/labelme:
-		Then move all labels in Labels folder (.json files)
-
-	4. Run TakeMasks:
-		It takes frames from FrPNG and labels from Labels folder and creates a mask for each Frame 
-		Then move all masks in Masks folder
-
-	5. Add frames in FrPNG (about 10% of total frames) in which the segment does not appear, then add total black masks in Masks (with the same names as the frames) 
-
-	5. Pip Install https://github.ccoast_cnn_based_detection_pipelineom/aleju/imgaug
-   	   Run Augment: (first change the Path in All cv2.imwrite('Path'+str(name)+'.png', image) according to your path)
-		Takes frames from FrPNG and masks from Masks and augments dataset by 26 frames for each frame and associated mask
-		It saves new frames in AugFr and new masks in AugMasks
-		Then move all frames from FrPNG in AugFr and all masks from Masks in AugMasks
-
-	6. Run Resize: (first change the Path in All cv2.imwrite('Path'+str(name)+'.png', image) according to your path)
-		It resizes all frames and masks from AugFr and AugMasks and saves them in ResizedFr, ResizedMasks
-	
-	7. Run 	DisplayFrMasks:
-		It displays frames from path1 combined with their masks from path2 (to check that everything is ok)
-
-	8. Run ClassMasks: (first change the Path in All cv2.imwrite('Path'+str(name)+'.png', image) according to your path)
-		Black pixels are "labeled" as class 0 and white pixels as class 1. If we let masks be as it is (black and white), 
-		NN will assume 255 segmentation classes.
-
-	9. Move some frames (about 10%) from ResizedFr to TestFr and their masks from CMasks to TestM
-
-When ResizedFr, Cmasks, TestFr and TestM folders are ready we can TRAIN the NN:
-
-	1. Pip Install https://divamgupta.com/image-segmentation/2019/06/06/deep-learning-semantic-segmentation-keras.html AND READ INSTRUCTIONS for train and predict
-
-	2. Run NewModelTrain:
-		This trains the model
-
-	2. Run Predict:
-		Predicts masks for multiple frames in a folder (or one at a time/ or from video/ or online from camera)
-
-	3. Run DisplayFrMasks to see the results(masks) combined with the frame
-		Uncomment #masked_rsz=cv2.resize(masked, dim, interpolation = cv2.INTER_AREA) because the output of the NN is an 64x64 image
-		Change path1 to the the folder for which you have predicted the outputs and path2 to outputs
-
-Note: To load the model (and predict) move all files from Checkpoints folder to their parent folder (Για κάποιο λόγο όταν τα έχω στο φάκελο Checkpoints δεν μου τα βρίσκει.
-	Τα άφησα μέσα στο φάκελο μόνο και μόνο για να μην είναι χύμα μαζί με τα scripts και τους φακέλους, να είναι όλα μαζεμένα)
-
-To use the trained NN in any system, install Tensorflow, Keras OpenCV and keras_segmentation from github. Then you just need predict script and the checkpoints created from NewModelTrain
+```
+$ ipython DisplayFrMasks.ipynb
+```
+If you are sure for the steps taken till now then you can proceed with the classification of the images:
+```
+$ ipython ClassMasks.ipynb
+```
+When this is completed then you have to split the dataset on training and validation part. From ResizedFr and CMasks you can move the 10-15% to TestFr and TestM respectively.
+Then you are rady for training:
+```
+$ ipython ModelTraing.ipynb
+```
+After several hours (according to the HW utilized) all the checkpoints of the procedure will be saved on the directory. Each checkpoint corresponds to an epoch of training. You can pick the epoch you deceided that the model converged you can try the validation of the trained model:
+```
+$ ipython Predict.ipynb
+$ ipython DisplayFrMasks_mobilenet_segnet.ipynb
+```
+According to the results on folder Test_output and DisplayFrMasks_after_training you can decide about the efficiency of the training procedure and what you wish to re-implement and configure.
+In our case we implemented these pipeline for coastline detection both on synthetic and on real outdoors datasets. The procedure on the real data was more challenging with a lot of back and forth to decide a final configuration of the whole pipeline to have desire results.
